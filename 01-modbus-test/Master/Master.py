@@ -1,34 +1,33 @@
-# slave.py
-from pymodbus.server import StartTcpServer
-from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
-from pymodbus.device import ModbusDeviceIdentification
-import logging
+# master.py
+from pymodbus.client import ModbusTcpClient
+import time
 
-logging.basicConfig()
-log = logging.getLogger()
-log.setLevel(logging.INFO)
+# اتصال به اسلیو
+client = ModbusTcpClient('192.168.1.10', port=502)
 
-# دیتاستور (Holding Registers از آدرس 0 تا 99)
-store = ModbusSlaveContext(
-    di=ModbusSequentialDataBlock(0, [0]*100),   # Discrete Inputs
-    co=ModbusSequentialDataBlock(0, [0]*100),   # Coils
-    hr=ModbusSequentialDataBlock(0, [0]*100),   # Holding Registers
-    ir=ModbusSequentialDataBlock(0, [0]*100)    # Input Registers
-)
-context = ModbusServerContext(slaves=store, single=True)
+if not client.connect():
+    print("نتونستم به اسلیو وصل بشم!")
+    exit()
 
-# اطلاعات دستگاه
-identity = ModbusDeviceIdentification()
-identity.VendorName = 'MySlave'
-identity.ProductCode = 'PM'
-identity.VendorUrl = 'http://github.com/pymodbus'
-identity.ProductName = 'Modbus Slave'
-identity.ModelName = 'Modbus Server'
-identity.MajorMinorRevision = '1.0'
+print("متصل شدم به اسلیو")
 
-print("Modbus Slave در حال اجرا روی 192.168.1.10:502 ...")
-StartTcpServer(
-    context=context,
-    identity=identity,
-    address=("192.168.1.10", 502)
-)
+try:
+    while True:
+        # نوشتن مقدار در Holding Register شماره 0
+        value = int(time.time()) % 1000          # یک عدد نمونه
+        client.write_register(0, value)
+        print(f"نوشتم: {value}")
+
+        # خواندن Holding Register شماره 0
+        result = client.read_holding_registers(0, 1)
+        if not result.isError():
+            print(f"خوندم: {result.registers[0]}")
+        else:
+            print("خطا در خواندن")
+
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    print("\nقطع شد")
+finally:
+    client.close()
